@@ -2,7 +2,7 @@ import socket
 
 client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 
-addr =("192.168.57.72",4000)
+addr =("172.20.10.5",4000)
 client.connect(addr)
 
 while True:
