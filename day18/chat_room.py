@@ -31,6 +31,7 @@ def chat_server():
             else:
                 remove_client = None
                 for i in client_arr:
+
                     if fd == i.fileno():
                         rdata = i.recv(1000)
                         if rdata:

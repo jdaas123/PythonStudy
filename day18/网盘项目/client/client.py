@@ -1,13 +1,24 @@
 from socket import *
 import struct
+import threading
 class Client:
     def __init__(self,ip,port):
         self.client:socket  = None
         self.ip =  ip
         self.port = port
+        self.token = None
     def tcp_connect(self):
         self.client = socket(AF_INET,SOCK_STREAM)
+        user_name = input("请输入用户名：").encode("utf8")
+        user_passport = input("请输入密码：").encode("utf8")
+
         self.client.connect((self.ip,self.port))
+        #发送user_name and user_passport
+        self.send_train(user_name)
+        self.send_train(user_passport)
+        #得到token
+        self.token = self.recv_train().decode("utf8")
+
     def send_train(self,send_bytes):#send_bytes 是字节流
         """
         send火车，就是把某个字节流内容以火车形式发过去
@@ -41,7 +52,9 @@ class Client:
             elif comment[:2] == "rm":
                 self.do_rm()
             elif comment[:4] == "gets":
-                self.do_gets()
+                t = threading.Thread(target=self.do_gets)
+                t.start()
+
             elif comment[:4] == "puts":
                 self.do_puts()
             else:
@@ -56,14 +69,24 @@ class Client:
     def do_rm(self, command):
         pass
 
-    def do_gets(self, command):
-        pass
+    def do_gets(self):
+        new_client = socket(AF_INET,SOCK_STREAM)
+        new_client.connect((self.ip,self.port))
+        #发token
+        if self.token:
+            self.send_train(self.token.encode("utf8"))
+            self.send_train("gets".encode("utf8"))
+        print(self.recv_train().decode("utf8"))
+
+
 
     def do_puts(self, command):
         pass
 
 
 if __name__ == '__main__':
-    client = Client("192.168.57.72",3000)
+    client = Client("192.168.2.128",3000)
     client.tcp_connect()
+
+
     client.send_comment()

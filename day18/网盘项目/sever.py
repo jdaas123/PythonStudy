@@ -1,35 +1,50 @@
 
-
+import select
 from socket import *
 import struct
 import os
+from multiprocessing import Process
+from multiprocessing.pool import Pool
 class Sever:
     def __init__(self,ip,port):
         self.s_listen:socket = None # 用来listen的socket对象
         self.ip = ip
         self.port = port
+        self.user_dist ={} #user:(ip,port)
+        self.connect_now = [] # new_client
 
     def tcp_init(self):
         self.s_listen = socket(AF_INET,SOCK_STREAM)
         self.s_listen.bind((self.ip,self.port))
         self.s_listen.listen(128)
 
-    def task(self):
+    def task(self,new_client):
         """
         处理用户发来的命令
         :return:
         """
-        new_client,_ =self.s_listen.accept()
+        # new_client,_ =self.s_listen.accept()
         user = User(new_client)
         user.deal_command()
-
-
+    def vertify_user(self,user):
+        for i in self.user_dist.keys:
+            if user.user_name == i.user_name:
+                if user.user_passport == i.user_passport:
+                    return True
+    def do_task(self,new_client):
+        user = User(new_client)
+        comment = user.recv_train().decode("utf8")
+        if comment == "gets":
+            user.do_gets()
+        elif comment == "puts":
+            user.do_puts()
 
 
 class User:
     def __init__(self,new_client):
         self.new_client:socket = new_client
         self.user_name = None
+        self.user_passport = None
         self.path = os.getcwd() #存储连上的用户路径
     def deal_command(self):
         while True:
@@ -48,6 +63,14 @@ class User:
                 self.do_puts()
             else:
                 self.send_train("Error comments".encode("utf8"))
+    def judge_user_name(self,user_name):
+        """
+        传入字节流，判断是否为用户名还是token
+
+        :param user_name:
+        :return: 是用户名 ： True
+        """
+        return len(user_name) < 50
     def send_train(self,send_bytes):#send_bytes 是字节流
         """
         send火车，就是把某个字节流内容以火车形式发过去
@@ -81,11 +104,55 @@ class User:
         pass
 
     def do_gets(self, command):
-        pass
+        self.send_train("gets".encode("utf8"))
+
 
     def do_puts(self, command):
         pass
 if __name__ == '__main__':
     s = Sever("",3000)
     s.tcp_init()
-    s.task()
+    epoll = select.epoll()
+    epoll.register(s.s_listen.fileno(),select.EPOLLIN)
+    po = Pool(10)
+    while True:
+        events = epoll.poll(-1)
+        for fd,_ in events:
+            if fd == s.s_listen.fileno():
+                new_client,client_addr = s.s_listen.accept()
+                user = User(new_client)
+                data = user.recv_train()
+                if user.judge_user_name(data): # 如果是用户名
+                    # 接收密码
+                    passport = user.recv_train().decode("utf8")
+                    user.user_name = data.decode("utf8")
+                    user.user_passport = passport
+
+                    #验证
+                    # if s.vertify_user(user):
+                    #     """
+                    #     验证成功，发送token
+                    #     """
+                    if True:
+                        token = user.user_name + "%wqwertyuiopplkmnhjkmnghjmnbvcxsdfghjsdasdjashdkjcnxjchjjasadsdasfd"
+                        #发送token
+                        user.send_train(token.encode("utf8"))
+                        #监控
+                        s.connect_now.append(new_client)
+                        epoll.register(new_client,select.EPOLLIN)
+
+
+                else:
+                    #如果是token
+                    po.apply_async(s.do_task,(new_client,))
+
+
+
+            else:
+                for i in s.connect_now:
+                    if i.fileno() == fd:
+                        pass
+
+
+
+    # s.task()
